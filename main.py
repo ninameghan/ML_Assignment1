@@ -5,7 +5,8 @@ from sklearn import svm
 
 def main():
     training_r, training_s, test_r, test_s = split_data()
-    training_review_words = extract_features(training_r, 4, 100)
+    training_words = extract_features(training_r, 4, 100)
+    word_occurences_pos, word_occurences_neg = feature_frequency(training_r, training_s, training_words)
 
 
 # TASK 1
@@ -57,6 +58,42 @@ def extract_features(training_r, min_word_length, min_word_occurrence):
             filtered_words.append(word)
 
     return filtered_words
+
+
+# TASK 3
+def feature_frequency(training_r, training_s, training_words):
+    word_occurences_pos = dict.fromkeys(training_words, 0)
+    word_occurences_neg = dict.fromkeys(training_words, 0)
+    positive_reviews = training_r[training_s == "positive"].str.replace('[^a-zA-Z0-9\s]', '', regex=True)
+    positive_reviews = positive_reviews.str.lower()
+    negative_reviews = training_r[training_s == "negative"].str.replace('[^a-zA-Z0-9\s]', '', regex=True)
+    negative_reviews = negative_reviews.str.lower()
+
+    is_in_review = False
+
+    for review in positive_reviews:
+        is_first_occurence = True
+        review_words = review.split()
+        for word in review_words:
+            if word in training_words and is_first_occurence:
+                is_in_review = True
+                is_first_occurence = False
+            if is_in_review:
+                word_occurences_pos[word] += 1
+                is_in_review = False
+
+    for review in negative_reviews:
+        is_first_occurence = True
+        review_words = review.split()
+        for word in review_words:
+            if word in training_words and is_first_occurence:
+                is_in_review = True
+                is_first_occurence = False
+            if is_in_review:
+                word_occurences_neg[word] += 1
+                is_in_review = False
+
+    return word_occurences_pos, word_occurences_neg
 
 
 main()
