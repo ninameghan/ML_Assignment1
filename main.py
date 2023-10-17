@@ -7,6 +7,7 @@ def main():
     training_r, training_s, test_r, test_s = split_data()
     training_words = extract_features(training_r, 4, 100)
     word_occurences_pos, word_occurences_neg = feature_frequency(training_r, training_s, training_words)
+    calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, training_words, training_s)
 
 
 # TASK 1
@@ -94,6 +95,38 @@ def feature_frequency(training_r, training_s, training_words):
                 is_in_review = False
 
     return word_occurences_pos, word_occurences_neg
+
+
+# TASK 4
+def calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, unique_words, sentiments):
+    word_likelihood = {}
+    alpha = 1
+
+    total_reviews = len(sentiments)
+    total_pos_reviews = sentiments.value_counts()["positive"]
+    total_neg_reviews = sentiments.value_counts()["negative"]
+
+    for word in unique_words:
+        word_count_pos = word_occurences_pos.get(word, 0)
+        word_count_neg = word_occurences_neg.get(word, 0)
+
+        # P[word is present in review[review is positive]]
+        likelihood_pos = (word_count_pos + alpha) / (total_pos_reviews + 2 * alpha)
+        # P[word is present in review[review is negative]]
+        likelihood_neg = (word_count_neg + alpha) / (total_neg_reviews + 2 * alpha)
+
+        word_likelihood[word] = {
+            'positive': likelihood_pos,
+            'negative': likelihood_neg
+        }
+
+    # Prior P[review is positive]
+    prior_positive = total_pos_reviews / total_reviews
+
+    # Prior P[review is negative]
+    prior_negative = total_neg_reviews / total_reviews
+
+    return word_likelihood
 
 
 main()
