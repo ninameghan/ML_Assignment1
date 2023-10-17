@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 from sklearn import svm
+import re
 
 
 def main():
@@ -10,7 +11,7 @@ def main():
     training_words = extract_features(training_r, 4, 100)
     word_occurences_pos, word_occurences_neg = feature_frequency(training_r, training_s, training_words)
     word_likelihoods, prior_pos, prior_neg = calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, training_words, training_s)
-    test_review = "This movie is horrible, I hated it"
+    test_review = "This movie is horrible, I hated it !!!"
     test = classification(test_review, prior_pos, prior_neg, word_likelihoods)
     print(test)
 
@@ -141,8 +142,9 @@ def classification(review, prior_pos, prior_neg, likelihoods):
     likelihood_pos = 0.0
     likelihood_neg = 0.0
 
-    # Split review into words
-    words = review.split()
+    # Split review into words + preprocessing
+    processed_review = re.sub(r'[^a-zA-Z0-9\s]', '', review)
+    words = processed_review.split()
 
     for word in words:
         if word in likelihoods:
