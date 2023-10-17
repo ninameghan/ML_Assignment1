@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import pandas as pd
 from sklearn import svm
@@ -7,7 +9,10 @@ def main():
     training_r, training_s, test_r, test_s = split_data()
     training_words = extract_features(training_r, 4, 100)
     word_occurences_pos, word_occurences_neg = feature_frequency(training_r, training_s, training_words)
-    calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, training_words, training_s)
+    word_likelihoods, prior_pos, prior_neg = calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, training_words, training_s)
+    test_review = "This movie is horrible, I hated it"
+    test = classification(test_review, prior_pos, prior_neg, word_likelihoods)
+    print(test)
 
 
 # TASK 1
@@ -126,7 +131,33 @@ def calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, uniqu
     # Prior P[review is negative]
     prior_negative = total_neg_reviews / total_reviews
 
-    return word_likelihood
+    print("P[review is positive]: ", prior_positive)
+    print("P[review is negative]: ", prior_negative)
+    return word_likelihood, prior_negative, prior_negative
+
+
+# TASK 5
+def classification(review, prior_pos, prior_neg, likelihoods):
+    likelihood_pos = 0.0
+    likelihood_neg = 0.0
+
+    # Split review into words
+    words = review.split()
+
+    for word in words:
+        if word in likelihoods:
+            # Use logarithms for numerical stability
+            likelihood_pos += math.log(likelihoods[word]['positive'])
+            likelihood_neg += math.log(likelihoods[word]['negative'])
+
+    # Apply Naive Bayesian Classification
+    log_pos = math.log(prior_pos) + likelihood_pos
+    log_neg = math.log(prior_neg) + likelihood_neg
+
+    if log_pos > log_neg:
+        return "positive"
+    else:
+        return "negative"
 
 
 main()
