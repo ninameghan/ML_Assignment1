@@ -3,17 +3,36 @@ import math
 import numpy as np
 import pandas as pd
 from sklearn import svm
+from sklearn.model_selection import KFold
+from sklearn.metrics import confusion_matrix
 import re
 
 
 def main():
+    # TASK 1
     training_r, training_s, test_r, test_s = split_data()
-    training_words = extract_features(training_r, 4, 100)
-    word_occurences_pos, word_occurences_neg = feature_frequency(training_r, training_s, training_words)
-    word_likelihoods, prior_pos, prior_neg = calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, training_words, training_s)
-    test_review = "This movie is horrible, I hated it !!!"
-    test = classification(test_review, prior_pos, prior_neg, word_likelihoods)
-    print(test)
+
+    # # TASK 2
+    # training_words = extract_features(training_r, 4, 100)
+
+    # # TASK 3
+    # word_occurences_pos, word_occurences_neg = feature_frequency(training_r, training_s, training_words)
+
+    # # TASK 4
+    # word_likelihoods, prior_pos, prior_neg = calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, training_words, training_s)
+
+    # # TASK 5
+    # test_review = "This movie is great, I loved it !!!"
+    # test = classification(test_review, prior_pos, prior_neg, word_likelihoods)
+    # print(test)
+
+    # TASK 6
+    # Find optimal word length for evaluation
+    optimal_word_length = find_optimal_word_length(training_r, training_s)
+
+    # Perform evaluation on test dataset with optimal word length
+    print("***** TEST EVALUATION *****")
+    final_evaluation(test_r, test_s, optimal_word_length)
 
 
 # TASK 1
@@ -30,10 +49,10 @@ def split_data():
     test_reviews = test_data["Review"]
     test_sentiments = test_data["Sentiment"]
 
-    print("Positive reviews in training set: ", training_sentiments.value_counts()["positive"])
-    print("Negative reviews in training set: ", training_sentiments.value_counts()["negative"])
-    print("Positive reviews in test set: ", test_sentiments.value_counts()["positive"])
-    print("Negative reviews in test set: ", test_sentiments.value_counts()["negative"])
+    print("Positive reviews in training set:", training_sentiments.value_counts()["positive"])
+    print("Negative reviews in training set:", training_sentiments.value_counts()["negative"])
+    print("Positive reviews in test set:", test_sentiments.value_counts()["positive"])
+    print("Negative reviews in test set:", test_sentiments.value_counts()["negative"])
 
     return training_reviews, training_sentiments, test_reviews, test_sentiments
 
@@ -132,8 +151,8 @@ def calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, uniqu
     # Prior P[review is negative]
     prior_negative = total_neg_reviews / total_reviews
 
-    print("P[review is positive]: ", prior_positive)
-    print("P[review is negative]: ", prior_negative)
+    # print("P[review is positive]:", prior_positive)
+    # print("P[review is negative]:", prior_negative)
     return word_likelihood, prior_negative, prior_negative
 
 
@@ -152,7 +171,6 @@ def classification(review, prior_pos, prior_neg, likelihoods):
             likelihood_pos += math.log(likelihoods[word]['positive'])
             likelihood_neg += math.log(likelihoods[word]['negative'])
 
-    # Apply Naive Bayesian Classification
     log_pos = math.log(prior_pos) + likelihood_pos
     log_neg = math.log(prior_neg) + likelihood_neg
 
@@ -160,6 +178,104 @@ def classification(review, prior_pos, prior_neg, likelihoods):
         return "positive"
     else:
         return "negative"
+
+
+# TASK 6
+def evaluation(training_r, training_s, min_word_length):
+    # Create a K-Fold object to perfrom 5-fold cross validation
+    kf = KFold(n_splits=5, shuffle=True)
+
+    # List to store accuracy scores of each fold
+    accuracy_scores = []
+    total_correct_pos = 0
+    total_incorrect_pos = 0
+    total_correct_neg = 0
+    total_incorrect_neg = 0
+    true_labels = []
+    predicted_labels = []
+
+    # Cross validation loop splitting training & test data
+    for train_index, test_index in kf.split(training_r):
+        train_reviews = training_r.iloc[train_index]
+        test_reviews = training_r.iloc[test_index]
+        train_sentiments = training_s.iloc[train_index]
+        test_sentiments = training_s.iloc[test_index]
+
+        # Extract features, calculate word occurrences, likelihoods, and priors
+        training_words = extract_features(train_reviews, min_word_length, 100)
+        word_occurences_pos, word_occurences_neg = feature_frequency(train_reviews, train_sentiments, training_words)
+        word_likelihoods, prior_pos, prior_neg = calculate_feature_likelihood(word_occurences_pos, word_occurences_neg,
+                                                                              training_words, train_sentiments)
+        # Counters for correct + incorrect predictions
+        correct = 0
+        incorrect = 0
+
+        # Classify each review in the test dataset
+        for i, review in enumerate(test_reviews):
+            predicted_s = classification(review, prior_pos, prior_neg, word_likelihoods)
+            true_labels.append(test_sentiments.iloc[i])
+            predicted_labels.append(predicted_s)
+            # Compare predicted sentiment with the actual sentiment
+            if predicted_s == test_sentiments.iloc[i]:
+                correct += 1
+                if predicted_s == "positive":
+                    total_correct_pos += 1
+                else:
+                    total_correct_neg += 1
+            else:
+                incorrect += 1
+                if predicted_s == "positive":
+                    total_incorrect_pos += 1
+                else:
+                    total_incorrect_neg += 1
+
+        # Calculate accuracy for current fold
+        accuracy = correct / (correct + incorrect)
+        accuracy_scores.append(accuracy)
+
+    # Calculate average accuracy
+    average_accuracy = np.mean(accuracy_scores)
+    print("Classification with min word length:", min_word_length)
+    print("Accuracy:", average_accuracy)
+
+    return average_accuracy, total_correct_pos, total_correct_neg, total_incorrect_pos, total_incorrect_neg, true_labels, predicted_labels
+
+
+def find_optimal_word_length(training_r, training_s):
+    # Create list of evaluations with different min word lengths
+    evaluations = []
+    for i in range(10):
+        evaluations.append(evaluation(training_r, training_s, i+1))
+
+    # Find the optimal word length from the above list
+    optimal_evaluation_accuracy = max(evaluations)
+    optimal_word_length = evaluations.index(optimal_evaluation_accuracy) + 1
+    print("Optimal evaluation accuracy:", optimal_evaluation_accuracy)
+    print("Optimal word length:", optimal_word_length)
+    return optimal_word_length
+
+
+def final_evaluation(test_r, test_s, optimal_word_length):
+    average_accuracy, total_correct_pos, total_correct_neg, total_incorrect_pos, total_incorrect_neg, true_labels, predicted_labels = evaluation(test_r, test_s, optimal_word_length)
+    total_pos = total_correct_pos + total_incorrect_pos
+    total_neg = total_correct_neg + total_incorrect_neg
+
+    # Confusion matrix
+    cm = confusion_matrix(true_labels, predicted_labels)
+    print("Confusion Matrix:", cm)
+
+    # True + false percentages
+    true_pos_per = (total_correct_pos / total_pos) * 100
+    false_pos_per = (total_incorrect_pos / total_pos) * 100
+    true_neg_per = (total_correct_neg / total_neg) * 100
+    false_neg_per = (total_incorrect_neg / total_neg) * 100
+    print("Percentage of true positive:", true_pos_per)
+    print("Percentage of true negative:", true_neg_per)
+    print("Percentage of false positive:", false_pos_per)
+    print("Percentage of false negative:", false_neg_per)
+
+    # Accuracy score
+    print("Accuracy score:", average_accuracy)
 
 
 main()
