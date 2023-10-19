@@ -2,7 +2,6 @@ import math
 
 import numpy as np
 import pandas as pd
-from sklearn import svm
 from sklearn.model_selection import KFold
 from sklearn.metrics import confusion_matrix
 import re
@@ -28,11 +27,12 @@ def main():
 
     # TASK 6
     # Find optimal word length for evaluation
-    optimal_word_length = find_optimal_word_length(training_r, training_s)
+    print("***** FIND OPTIMAL WORD LENGTH *****")
+    # optimal_word_length = find_optimal_word_length(training_r, training_s)
 
     # Perform evaluation on test dataset with optimal word length
     print("***** TEST EVALUATION *****")
-    final_evaluation(test_r, test_s, optimal_word_length)
+    final_evaluation(test_r, test_s, 4)
 
 
 # TASK 1
@@ -90,10 +90,8 @@ def extract_features(training_r, min_word_length, min_word_occurrence):
 def feature_frequency(training_r, training_s, training_words):
     word_occurences_pos = dict.fromkeys(training_words, 0)
     word_occurences_neg = dict.fromkeys(training_words, 0)
-    positive_reviews = training_r[training_s == "positive"].str.replace('[^a-zA-Z0-9\s]', '', regex=True)
-    positive_reviews = positive_reviews.str.lower()
-    negative_reviews = training_r[training_s == "negative"].str.replace('[^a-zA-Z0-9\s]', '', regex=True)
-    negative_reviews = negative_reviews.str.lower()
+    positive_reviews = training_r[training_s == "positive"].str.replace('[^a-zA-Z0-9\s]', '', regex=True).str.lower()
+    negative_reviews = training_r[training_s == "negative"].str.replace('[^a-zA-Z0-9\s]', '', regex=True).str.lower()
 
     is_in_review = False
 
@@ -151,9 +149,7 @@ def calculate_feature_likelihood(word_occurences_pos, word_occurences_neg, uniqu
     # Prior P[review is negative]
     prior_negative = total_neg_reviews / total_reviews
 
-    # print("P[review is positive]:", prior_positive)
-    # print("P[review is negative]:", prior_negative)
-    return word_likelihood, prior_negative, prior_negative
+    return word_likelihood, prior_positive, prior_negative
 
 
 # TASK 5
@@ -187,10 +183,6 @@ def evaluation(training_r, training_s, min_word_length):
 
     # List to store accuracy scores of each fold
     accuracy_scores = []
-    total_correct_pos = 0
-    total_incorrect_pos = 0
-    total_correct_neg = 0
-    total_incorrect_neg = 0
     true_labels = []
     predicted_labels = []
 
@@ -218,16 +210,8 @@ def evaluation(training_r, training_s, min_word_length):
             # Compare predicted sentiment with the actual sentiment
             if predicted_s == test_sentiments.iloc[i]:
                 correct += 1
-                if predicted_s == "positive":
-                    total_correct_pos += 1
-                else:
-                    total_correct_neg += 1
             else:
                 incorrect += 1
-                if predicted_s == "positive":
-                    total_incorrect_pos += 1
-                else:
-                    total_incorrect_neg += 1
 
         # Calculate accuracy for current fold
         accuracy = correct / (correct + incorrect)
@@ -238,37 +222,48 @@ def evaluation(training_r, training_s, min_word_length):
     print("Classification with min word length:", min_word_length)
     print("Accuracy:", average_accuracy)
 
-    return average_accuracy, total_correct_pos, total_correct_neg, total_incorrect_pos, total_incorrect_neg, true_labels, predicted_labels
+    return average_accuracy, true_labels, predicted_labels
 
 
 def find_optimal_word_length(training_r, training_s):
     # Create list of evaluations with different min word lengths
     evaluations = []
     for i in range(10):
-        evaluations.append(evaluation(training_r, training_s, i+1))
+        average_accuracy, true_labels, predicted_labels = evaluation(training_r, training_s, i + 1)
+        evaluations.append(average_accuracy)
 
     # Find the optimal word length from the above list
     optimal_evaluation_accuracy = max(evaluations)
     optimal_word_length = evaluations.index(optimal_evaluation_accuracy) + 1
+
     print("Optimal evaluation accuracy:", optimal_evaluation_accuracy)
     print("Optimal word length:", optimal_word_length)
+
     return optimal_word_length
 
 
 def final_evaluation(test_r, test_s, optimal_word_length):
-    average_accuracy, total_correct_pos, total_correct_neg, total_incorrect_pos, total_incorrect_neg, true_labels, predicted_labels = evaluation(test_r, test_s, optimal_word_length)
-    total_pos = total_correct_pos + total_incorrect_pos
-    total_neg = total_correct_neg + total_incorrect_neg
+    average_accuracy, true_labels, predicted_labels = evaluation(test_r, test_s, optimal_word_length)
 
     # Confusion matrix
     cm = confusion_matrix(true_labels, predicted_labels)
-    print("Confusion Matrix:", cm)
+
+    total_correct_pos = cm[1][1]
+    total_correct_neg = cm[0][0]
+    total_incorrect_pos = cm[0][1]
+    total_incorrect_neg = cm[1][0]
+
+    print("Confusion Matrix:\n", cm)
+
+    total_pos = total_correct_pos + total_incorrect_neg
+    total_neg = total_correct_neg + total_incorrect_pos
 
     # True + false percentages
     true_pos_per = (total_correct_pos / total_pos) * 100
     false_pos_per = (total_incorrect_pos / total_pos) * 100
     true_neg_per = (total_correct_neg / total_neg) * 100
     false_neg_per = (total_incorrect_neg / total_neg) * 100
+
     print("Percentage of true positive:", true_pos_per)
     print("Percentage of true negative:", true_neg_per)
     print("Percentage of false positive:", false_pos_per)
