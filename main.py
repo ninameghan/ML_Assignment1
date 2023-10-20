@@ -28,11 +28,12 @@ def main():
     # TASK 6
     # Find optimal word length for evaluation
     print("***** FIND OPTIMAL WORD LENGTH *****")
-    # optimal_word_length = find_optimal_word_length(training_r, training_s)
+    optimal_word_length = find_optimal_word_length(training_r, training_s)
+    average_accuracy, true_labels, predicted_labels, word_likelihoods, prior_pos, prior_neg = evaluation(training_r, training_s, optimal_word_length)
 
     # Perform evaluation on test dataset with optimal word length
     print("***** TEST EVALUATION *****")
-    final_evaluation(test_r, test_s, 4)
+    final_evaluation(test_r, test_s, word_likelihoods, prior_pos, prior_neg)
 
 
 # TASK 1
@@ -185,6 +186,9 @@ def evaluation(training_r, training_s, min_word_length):
     accuracy_scores = []
     true_labels = []
     predicted_labels = []
+    word_likelihoods = {}
+    prior_pos = 0.0
+    prior_neg = 0.0
 
     # Cross validation loop splitting training & test data
     for train_index, test_index in kf.split(training_r):
@@ -222,15 +226,14 @@ def evaluation(training_r, training_s, min_word_length):
     print("Classification with min word length:", min_word_length)
     print("Accuracy:", average_accuracy)
 
-    return average_accuracy, true_labels, predicted_labels
+    return average_accuracy, true_labels, predicted_labels, word_likelihoods, prior_pos, prior_neg
 
 
 def find_optimal_word_length(training_r, training_s):
     # Create list of evaluations with different min word lengths
     evaluations = []
     for i in range(10):
-        average_accuracy, true_labels, predicted_labels = evaluation(training_r, training_s, i + 1)
-        evaluations.append(average_accuracy)
+        evaluations.append(evaluation(training_r, training_s, i + 1)[0])
 
     # Find the optimal word length from the above list
     optimal_evaluation_accuracy = max(evaluations)
@@ -242,27 +245,38 @@ def find_optimal_word_length(training_r, training_s):
     return optimal_word_length
 
 
-def final_evaluation(test_r, test_s, optimal_word_length):
-    average_accuracy, true_labels, predicted_labels = evaluation(test_r, test_s, optimal_word_length)
+def final_evaluation(test_r, test_s, word_likelihoods, prior_pos, prior_neg):
+    # Counters for correct + incorrect predictions
+    true_labels = []
+    predicted_labels = []
+
+    # Classify each review in the test dataset
+    for i, review in enumerate(test_r):
+        predicted_s = classification(review, prior_pos, prior_neg, word_likelihoods)
+        true_labels.append(test_s.iloc[i])
+        predicted_labels.append(predicted_s)
 
     # Confusion matrix
     cm = confusion_matrix(true_labels, predicted_labels)
 
-    total_correct_pos = cm[1][1]
-    total_correct_neg = cm[0][0]
-    total_incorrect_pos = cm[0][1]
-    total_incorrect_neg = cm[1][0]
+    total_true_pos = cm[1][1]
+    total_true_neg = cm[0][0]
+    total_false_pos = cm[0][1]
+    total_false_neg = cm[1][0]
+
+    # Calculate accuracy for test evaluation
+    accuracy = (total_true_pos + total_true_neg) / (total_true_pos + total_true_neg + total_false_pos + total_false_neg)
 
     print("Confusion Matrix:\n", cm)
 
-    total_pos = total_correct_pos + total_incorrect_neg
-    total_neg = total_correct_neg + total_incorrect_pos
+    total_pos = total_true_pos + total_false_neg
+    total_neg = total_true_neg + total_false_pos
 
     # True + false percentages
-    true_pos_per = (total_correct_pos / total_pos) * 100
-    false_pos_per = (total_incorrect_pos / total_pos) * 100
-    true_neg_per = (total_correct_neg / total_neg) * 100
-    false_neg_per = (total_incorrect_neg / total_neg) * 100
+    true_pos_per = (total_true_pos / total_pos) * 100
+    false_pos_per = (total_false_pos / total_pos) * 100
+    true_neg_per = (total_true_neg / total_neg) * 100
+    false_neg_per = (total_false_neg / total_neg) * 100
 
     print("Percentage of true positive:", true_pos_per)
     print("Percentage of true negative:", true_neg_per)
@@ -270,7 +284,7 @@ def final_evaluation(test_r, test_s, optimal_word_length):
     print("Percentage of false negative:", false_neg_per)
 
     # Accuracy score
-    print("Accuracy score:", average_accuracy)
+    print("Accuracy score:", accuracy)
 
 
 main()
